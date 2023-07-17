@@ -1,3 +1,7 @@
+def is_arm64()
+  `uname -m` == "arm64" || `/usr/bin/arch -64 sh -c "sysctl -in sysctl.proc_translated"`.strip() == "0"
+end
+
 Vagrant.configure("2") do |config|
   # on hyperv, we need a special plugin
   config.vm.provider "hyperv" do |hyperv, override|
@@ -22,14 +26,31 @@ Vagrant.configure("2") do |config|
   end
 
   # basic vm configuration
-  config.vm.box = "generic/ubuntu2004"
   config.vm.hostname = "dyncluster"
 
+  # pick the box to use
+  if !is_arm64()
+    config.vm.box = "bento/ubuntu-20.04"
+  else
+    config.vm.box = "bento/ubuntu-20.04-arm64"
+  end
+
+  # configure the memory/cpu capabilities
   config.vm.provider "virtualbox" do |vb|
-    vb.memory = "3072"
+    vb.memory = 3072
+    vb.cpus = 4
   end
   config.vm.provider "hyperv" do |hyperv|
-    hyperv.maxmemory = "3072"
+    hyperv.maxmemory = 3072
+    hyperv.cpus = 4
+  end
+  config.vm.provider "parallels" do |prl|
+    prl.memory = 3072
+    prl.cpus = 4
+  end
+  config.vm.provider "vmware_desktop" do |v|
+    v.vmx["memsize"] = "3072"
+    v.vmx["numvcpus"] = "4"
   end
 
   # set up initial networking
@@ -39,12 +60,24 @@ Vagrant.configure("2") do |config|
   config.vm.provider "hyperv" do |hyperv, override|
     override.vm.network :private_network, bridge: "CBDCSwitch"
   end
+  config.vm.provider "parallels" do |vb, override|
+    override.vm.network :private_network, ip: "192.168.99.5", :netmask => "255.255.255.0"
+  end
+  config.vm.provider "vmware_desktop" do |vb, override|
+    override.vm.network :private_network, ip: "192.168.99.5", :netmask => "255.255.255.0"
+  end
 
   # disable folder sync since we don't use it and it causes prompts on hyperv
   config.vm.synced_folder '.', '/vagrant', disabled: true
 
-  # on virtualbox, we just run the setup script
+  # on most providers, we just run the setup script
   config.vm.provider "virtualbox" do |vb, override|
+    override.vm.provision "shell", path: "./scripts/setup-vm.sh"
+  end
+  config.vm.provider "parallels" do |vb, override|
+    override.vm.provision "shell", path: "./scripts/setup-vm.sh"
+  end
+  config.vm.provider "vmware_desktop" do |vb, override|
     override.vm.provision "shell", path: "./scripts/setup-vm.sh"
   end
 
