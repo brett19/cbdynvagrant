@@ -24,9 +24,12 @@ EOT
 sudo systemctl daemon-reload
 sudo systemctl restart docker.service
 
+# identify the interface for our link
+IFACE=$(ip -br -4 a sh | grep 192.168.99.5 | awk '{print $1}')
+
 # setup our macvlan0 network to share ip address space with this vagrant
 sudo docker network create -d macvlan \
     --subnet=192.168.99.0/24 \
     --ip-range=192.168.99.128/25 \
     --gateway=192.168.99.1 \
-    -o parent=eth0 macvlan0
+    -o parent=$IFACE macvlan0
